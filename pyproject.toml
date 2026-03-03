@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "superbot"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "pyyaml>=6.0",
+    "PyGithub>=2.3",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+superbot = "superbot.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
