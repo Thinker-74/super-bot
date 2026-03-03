@@ -89,6 +89,42 @@ def _run_once(text: str, mode: str | None, repo: str | None, router: Router, inj
 
 
 # ---------------------------------------------------------------------------
+# --list-models
+# ---------------------------------------------------------------------------
+
+def _list_models() -> int:
+    """Query Ollama for available models and print them."""
+    adapter = _make_ollama()
+    base_url = adapter.base_url
+    try:
+        import httpx
+        r = httpx.get(f"{base_url}/api/tags", timeout=8)
+        r.raise_for_status()
+        models = r.json().get("models", [])
+    except Exception as e:
+        print(f"[superbot] cannot reach Ollama at {base_url}: {e}", file=sys.stderr)
+        return 1
+
+    if not models:
+        print("[superbot] No models found on Ollama.")
+        return 0
+
+    print(f"[superbot] Models available at {base_url}:\n")
+    for m in models:
+        size_gb = m.get("size", 0) / 1e9
+        print(f"  {m['name']:<35} {size_gb:.1f} GB")
+
+    # Also show which models are mapped in routing config
+    from superbot.router.router import Router
+    router = Router()
+    routed = {cfg["model"] for cfg in [router.route(mode) for mode in router.available_modes]}
+    unrouted = [m["name"] for m in models if m["name"] not in routed]
+    if unrouted:
+        print(f"\n  (not in routing.yaml: {', '.join(unrouted)})")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Feature 3: process-issue
 # ---------------------------------------------------------------------------
 
@@ -208,6 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument("--text", help="Prompt text (single-shot mode)")
     group.add_argument("--interactive", "-i", action="store_true", help="Interactive REPL mode")
     group.add_argument("--process-issue", type=int, metavar="N", help="Fetch issue #N, analyse, post comment")
+    group.add_argument("--list-models", action="store_true", help="List models available on Ollama")
 
     return p
 
@@ -219,6 +256,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # Resolve repo: CLI flag overrides env
     repo = args.repo or os.environ.get("GITHUB_DEFAULT_REPO") or None
+
+    if args.list_models:
+        return _list_models()
 
     if args.interactive:
         return _repl(args.mode, repo, router, stream=stream)
