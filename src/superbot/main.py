@@ -60,13 +60,13 @@ def _build_github_context(gh: GitHubAdapter, repo: str | None) -> str:
     return "\n".join(lines)
 
 
-def _call_adapter(adapter_name: str, model: str, prompt: str) -> str:
+def _call_adapter(adapter_name: str, model: str, prompt: str, stream: bool = False) -> str:
     if adapter_name == "ollama":
-        return _make_ollama().generate(model=model, prompt=prompt)
+        return _make_ollama().generate(model=model, prompt=prompt, stream=stream)
     raise ValueError(f"Adapter '{adapter_name}' not implemented.")
 
 
-def _run_once(text: str, mode: str | None, repo: str | None, router: Router, inject_context: bool) -> str:
+def _run_once(text: str, mode: str | None, repo: str | None, router: Router, inject_context: bool, stream: bool = False) -> str:
     """Normalize → route → (optionally) inject GitHub context → call adapter → log → return response."""
     request = normalize({"text": text, "mode": mode or "", "repo": repo})
     route = router.route(request.mode)
@@ -83,7 +83,7 @@ def _run_once(text: str, mode: str | None, repo: str | None, router: Router, inj
                 prompt = f"{ctx}\n\n---\n\n{prompt}"
 
     print(f"[superbot] mode={route['mode']} model={model}", file=sys.stderr)
-    response = _call_adapter(adapter_name, model, prompt)
+    response = _call_adapter(adapter_name, model, prompt, stream=stream)
     log_request(request, model, response)
     return response
 
@@ -136,15 +136,16 @@ def _process_issue(issue_number: int, repo: str | None, mode: str | None, router
 # Feature 2: REPL
 # ---------------------------------------------------------------------------
 
-def _repl(mode: str | None, repo: str | None, router: Router) -> int:
-    """Interactive loop. Commands: /mode <name>, /repo <slug>, /exit."""
+def _repl(mode: str | None, repo: str | None, router: Router, stream: bool = False) -> int:
+    """Interactive loop. Commands: /mode <name>, /repo <slug>, /stream, /exit."""
     current_mode = mode or router.default_mode
     current_repo = repo
     inject = bool(current_repo)
 
-    print(f"[superbot] interactive mode — model={router.route(current_mode)['model']}")
+    print(f"[superbot] interactive mode — model={router.route(current_mode)['model']} stream={'on' if stream else 'off'}")
     print(f"  /mode <name>  switch mode  (available: {', '.join(router.available_modes)})")
     print(f"  /repo <slug>  set repo for GitHub context")
+    print(f"  /stream       toggle streaming on/off")
     print(f"  /exit         quit\n")
 
     while True:
@@ -176,9 +177,19 @@ def _repl(mode: str | None, repo: str | None, router: Router) -> int:
             print(f"[superbot] repo set to {current_repo or '(none)'}")
             continue
 
+        if text == "/stream":
+            stream = not stream
+            print(f"[superbot] streaming {'on' if stream else 'off'}")
+            continue
+
         try:
-            response = _run_once(text, current_mode, current_repo, router, inject_context=inject)
-            print(f"\nbot> {response}\n")
+            if stream:
+                print("bot> ", end="", flush=True)
+            response = _run_once(text, current_mode, current_repo, router, inject_context=inject, stream=stream)
+            if not stream:
+                print(f"\nbot> {response}\n")
+            else:
+                print()
         except Exception as e:
             print(f"[superbot] error: {e}", file=sys.stderr)
 
@@ -191,6 +202,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="superbot", description="Route prompts to local LLMs via Ollama.")
     p.add_argument("--mode", default=None, help="Routing mode (coding, reasoning_light, reasoning_heavy, docs)")
     p.add_argument("--repo", default=None, help="GitHub repo slug (e.g. Thinker-74/super-bot)")
+    p.add_argument("--stream", "-s", action="store_true", help="Stream tokens to stdout in real time")
 
     group = p.add_mutually_exclusive_group()
     group.add_argument("--text", help="Prompt text (single-shot mode)")
@@ -203,12 +215,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     router = Router()
+    stream = args.stream
 
     # Resolve repo: CLI flag overrides env
     repo = args.repo or os.environ.get("GITHUB_DEFAULT_REPO") or None
 
     if args.interactive:
-        return _repl(args.mode, repo, router)
+        return _repl(args.mode, repo, router, stream=stream)
 
     if args.process_issue is not None:
         return _process_issue(args.process_issue, repo, router=router, mode=args.mode)
@@ -220,8 +233,9 @@ def main(argv: list[str] | None = None) -> int:
     # Single-shot with optional GitHub context
     inject = bool(repo)
     try:
-        response = _run_once(args.text, args.mode, repo, router, inject_context=inject)
-        print(response)
+        response = _run_once(args.text, args.mode, repo, router, inject_context=inject, stream=stream)
+        if not stream:
+            print(response)
         return 0
     except Exception as e:
         print(f"[superbot] error: {e}", file=sys.stderr)

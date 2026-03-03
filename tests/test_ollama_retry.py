@@ -35,6 +35,17 @@ class TestOllamaAdapterRetry(unittest.TestCase):
         self.assertEqual(result, "ok")
         self.assertEqual(mock_post.call_count, 2)
 
+    def test_retries_on_read_timeout(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"response": "ok after read timeout"}
+        with patch("httpx.post", side_effect=[
+            httpx.ReadTimeout("read timed out"),
+            mock_resp,
+        ]) as mock_post:
+            result = self.adapter.generate("model-x", "hi")
+        self.assertEqual(result, "ok after read timeout")
+        self.assertEqual(mock_post.call_count, 2)
+
     def test_raises_after_all_retries_exhausted(self):
         with patch("httpx.post", side_effect=httpx.ConnectTimeout("timeout")):
             with self.assertRaises(httpx.ConnectTimeout):
