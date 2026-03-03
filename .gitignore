@@ -1,0 +1,26 @@
+# Secrets
+.env
+
+# Runtime logs (append-only, not versioned)
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db

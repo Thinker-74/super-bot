@@ -1,0 +1,15 @@
+default_mode: reasoning_light
+
+modes:
+  coding:
+    model: qwen2.5-coder:14b
+    adapter: ollama
+  reasoning_light:
+    model: deepseek-r1:7b
+    adapter: ollama
+  reasoning_heavy:
+    model: deepseek-r1:14b
+    adapter: ollama
+  docs:
+    model: deepseek-r1:7b
+    adapter: ollama
