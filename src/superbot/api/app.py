@@ -27,7 +27,7 @@ from superbot.gateway.handler import normalize  # noqa: E402
 from superbot.router.router import Router  # noqa: E402
 from superbot.state.logger import log_request  # noqa: E402
 
-app = FastAPI(title="super-bot", version="0.1.0", description="CLI-first AI orchestration bot — HTTP gateway")
+app = FastAPI(title="super-bot", version="1.0.0", description="Personal AI orchestration bot — HTTP gateway")
 
 _router = Router()
 _ollama_base = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.65:11434")

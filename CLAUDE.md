@@ -1,14 +1,15 @@
 # CLAUDE.md — AI Assistant Rules for super-bot
 
 ## Project purpose
-super-bot is a CLI-first AI orchestration bot that routes natural-language requests to
-locally-running LLMs (via Ollama) and interacts with GitHub issues/files.
+super-bot is a **personal AI orchestration tool** that routes prompts to locally-running
+LLMs (via Ollama) to offload token costs, while being orchestrated by a "super AI" (Claude).
+It integrates with GitHub for issue-driven workflows.
 
 ## Scope
-- **In scope (v0):** CLI entrypoint, config-driven routing, Ollama HTTP adapter, GitHub adapter,
-  append-only request log.
-- **Out of scope (v0):** HTTP server (FastAPI), ML-based mode inference, multi-tenant auth,
-  streaming output to a web client.
+- **v1 (current):** CLI entrypoint (single-shot, REPL, process-issue, list-models),
+  config-driven routing, Ollama HTTP adapter with streaming & retry, GitHub adapter
+  (issues + comments + context injection), FastAPI HTTP gateway, append-only request log.
+- **v2 (planned):** Multi-turn conversation, auth on HTTP gateway, ML-based mode inference.
 
 ## Constraints
 1. Never commit `.env` — use `.env.example` as the template.
