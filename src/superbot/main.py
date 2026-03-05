@@ -1,10 +1,11 @@
 """CLI entrypoint for super-bot.
 
 Modes:
-  Normal       python -m superbot.main --text "..." --mode coding
-  With context python -m superbot.main --text "..." --repo Thinker-74/super-bot
-  Interactive  python -m superbot.main --interactive [--mode coding]
+  Normal        python -m superbot.main --text "..." --mode coding
+  With context  python -m superbot.main --text "..." --repo Thinker-74/super-bot
+  Interactive   python -m superbot.main --interactive [--mode coding]
   Process issue python -m superbot.main --process-issue 5 [--repo ...]
+  Orchestrate   python -m superbot.main --text "..." --orchestrate
 """
 from __future__ import annotations
 
@@ -28,6 +29,14 @@ from superbot.state.logger import log_request  # noqa: E402
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _make_claude():
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        raise RuntimeError("ANTHROPIC_API_KEY not set in environment")
+    from superbot.adapters.claude import ClaudeAdapter
+    return ClaudeAdapter(key)
+
 
 def _make_ollama() -> OllamaAdapter:
     base_url = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.65:11434")
@@ -86,6 +95,39 @@ def _run_once(text: str, mode: str | None, repo: str | None, router: Router, inj
     response = _call_adapter(adapter_name, model, prompt, stream=stream)
     log_request(request, model, response)
     return response
+
+
+# ---------------------------------------------------------------------------
+# --orchestrate
+# ---------------------------------------------------------------------------
+
+def _orchestrate(text: str, repo: str | None, router: Router, stream: bool) -> int:
+    """Ask Claude to route: delegate to Ollama or respond directly."""
+    claude = _make_claude()
+    modes_desc = {m: router.route(m)["model"] for m in router.available_modes}
+
+    print("[superbot] orchestrator: asking Claude...", file=sys.stderr)
+    decision = claude.decide(text, modes_desc)
+    action = decision["action"]
+    reason = decision.get("reason", "")
+
+    if action == "delegate":
+        mode = decision.get("mode", router.default_mode)
+        print(f"[superbot] orchestrator: delegate → mode={mode}  reason={reason}", file=sys.stderr)
+        inject = bool(repo)
+        response = _run_once(text, mode, repo, router, inject_context=inject, stream=stream)
+        if not stream:
+            print(response)
+    else:
+        print(f"[superbot] orchestrator: direct  → reason={reason}", file=sys.stderr)
+        if stream:
+            print("bot> ", end="", flush=True)
+        response = claude.generate(text, stream=stream)
+        if not stream:
+            print(response)
+        else:
+            print()
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -240,11 +282,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--repo", default=None, help="GitHub repo slug (e.g. Thinker-74/super-bot)")
     p.add_argument("--stream", "-s", action="store_true", help="Stream tokens to stdout in real time")
 
+    p.add_argument("--text", help="Prompt text (single-shot or orchestrate mode)")
+
     group = p.add_mutually_exclusive_group()
-    group.add_argument("--text", help="Prompt text (single-shot mode)")
     group.add_argument("--interactive", "-i", action="store_true", help="Interactive REPL mode")
     group.add_argument("--process-issue", type=int, metavar="N", help="Fetch issue #N, analyse, post comment")
     group.add_argument("--list-models", action="store_true", help="List models available on Ollama")
+    group.add_argument("--orchestrate", "-o", action="store_true",
+                       help="Let Claude decide: delegate to a local LLM or respond directly")
 
     return p
 
@@ -259,6 +304,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.list_models:
         return _list_models()
+
+    if args.orchestrate:
+        if not args.text:
+            print("[superbot] --orchestrate requires --text", file=sys.stderr)
+            return 1
+        return _orchestrate(args.text, repo, router, stream)
 
     if args.interactive:
         return _repl(args.mode, repo, router, stream=stream)

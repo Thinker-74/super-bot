@@ -49,8 +49,9 @@ class TestBuildParser(unittest.TestCase):
         self.assertEqual(args.repo, "owner/repo")
 
     def test_mutual_exclusion(self):
+        # --interactive and --orchestrate are mutually exclusive
         with self.assertRaises(SystemExit):
-            build_parser().parse_args(["--text", "hi", "--interactive"])
+            build_parser().parse_args(["--interactive", "--orchestrate"])
 
 
 class TestMainDispatch(unittest.TestCase):
