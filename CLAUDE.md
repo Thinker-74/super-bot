@@ -26,7 +26,7 @@ It integrates with GitHub for issue-driven workflows.
 - python-dotenv (env loading)
 
 ## Runtime
-- Ollama runs on a remote host: `http://192.168.1.65:11434`
+- Ollama runs on a remote host: `http://192.168.1.63:11434`
 - GitHub PAT loaded from `GITHUB_TOKEN` env var
 - Default repo: `GITHUB_DEFAULT_REPO` env var (e.g. `Thinker-74/super-bot`)
 

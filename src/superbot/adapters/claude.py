@@ -31,7 +31,7 @@ def _build_system_prompt(modes: dict[str, str]) -> str:
     return _SYSTEM_TEMPLATE.format(modes_block=lines)
 
 
-def _parse_decision(text: str, fallback_mode: str = "reasoning_light") -> dict:
+def _parse_decision(text: str, valid_modes: set[str] | None = None, fallback_mode: str = "reasoning_light") -> dict:
     """Extract JSON from Claude's response; fall back gracefully on parse errors."""
     # Strip accidental markdown fences
     cleaned = re.sub(r"```[a-z]*\n?", "", text).strip()
@@ -39,6 +39,10 @@ def _parse_decision(text: str, fallback_mode: str = "reasoning_light") -> dict:
         data = json.loads(cleaned)
         if data.get("action") not in ("delegate", "direct"):
             raise ValueError("unknown action")
+        # Validate mode exists in available modes
+        if data.get("action") == "delegate" and valid_modes and data.get("mode") not in valid_modes:
+            data["mode"] = fallback_mode
+            data["reason"] = f"unknown mode '{data.get('mode')}' — fallback"
         return data
     except (json.JSONDecodeError, ValueError):
         return {"action": "delegate", "mode": fallback_mode, "reason": "parse error — fallback"}
@@ -59,7 +63,9 @@ class ClaudeAdapter:
             system=system,
             messages=[{"role": "user", "content": prompt}],
         )
-        return _parse_decision(msg.content[0].text)
+        if not msg.content:
+            return {"action": "delegate", "mode": "reasoning_light", "reason": "empty response — fallback"}
+        return _parse_decision(msg.content[0].text, valid_modes=set(modes.keys()))
 
     def generate(self, prompt: str, stream: bool = False) -> str:
         """Respond directly using Claude (sonnet). Used when action=direct."""
@@ -70,6 +76,8 @@ class ClaudeAdapter:
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
         )
+        if not msg.content:
+            return "[superbot] Claude returned an empty response."
         return msg.content[0].text
 
     def _generate_stream(self, prompt: str) -> str:

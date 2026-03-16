@@ -24,22 +24,22 @@ class TestRouter(unittest.TestCase):
     def test_coding_mode(self):
         result = self.router.route("coding")
         self.assertEqual(result["mode"], "coding")
-        self.assertEqual(result["model"], "qwen2.5-coder:14b")
+        self.assertEqual(result["model"], "qwen2.5-coder:7b")
         self.assertEqual(result["adapter"], "ollama")
 
     def test_reasoning_light_mode(self):
         result = self.router.route("reasoning_light")
         self.assertEqual(result["mode"], "reasoning_light")
-        self.assertEqual(result["model"], "deepseek-r1:7b")
+        self.assertEqual(result["model"], "qwen3:8b")
 
     def test_reasoning_heavy_mode(self):
         result = self.router.route("reasoning_heavy")
-        self.assertEqual(result["model"], "deepseek-r1:14b")
+        self.assertEqual(result["model"], "qwen3:8b")
 
     def test_docs_mode(self):
         result = self.router.route("docs")
         self.assertEqual(result["mode"], "docs")
-        self.assertEqual(result["model"], "deepseek-r1:7b")
+        self.assertEqual(result["model"], "qwen3:8b")
 
     # ------------------------------------------------------------------
     # Fallback behaviour

@@ -39,7 +39,7 @@ def _make_claude():
 
 
 def _make_ollama() -> OllamaAdapter:
-    base_url = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.65:11434")
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.63:11434")
     return OllamaAdapter(base_url)
 
 
@@ -134,32 +134,24 @@ def _orchestrate(text: str, repo: str | None, router: Router, stream: bool) -> i
 # --list-models
 # ---------------------------------------------------------------------------
 
-def _list_models() -> int:
+def _list_models(router: Router) -> int:
     """Query Ollama for available models and print them."""
     adapter = _make_ollama()
-    base_url = adapter.base_url
     try:
-        import httpx
-        r = httpx.get(f"{base_url}/api/tags", timeout=8)
-        r.raise_for_status()
-        models = r.json().get("models", [])
+        models = adapter.list_models()
     except Exception as e:
-        print(f"[superbot] cannot reach Ollama at {base_url}: {e}", file=sys.stderr)
+        print(f"[superbot] cannot reach Ollama at {adapter.base_url}: {e}", file=sys.stderr)
         return 1
 
     if not models:
         print("[superbot] No models found on Ollama.")
         return 0
 
-    print(f"[superbot] Models available at {base_url}:\n")
+    print(f"[superbot] Models available at {adapter.base_url}:\n")
     for m in models:
-        size_gb = m.get("size", 0) / 1e9
-        print(f"  {m['name']:<35} {size_gb:.1f} GB")
+        print(f"  {m['name']:<35} {m['size_gb']:.1f} GB")
 
-    # Also show which models are mapped in routing config
-    from superbot.router.router import Router
-    router = Router()
-    routed = {cfg["model"] for cfg in [router.route(mode) for mode in router.available_modes]}
+    routed = {router.route(mode)["model"] for mode in router.available_modes}
     unrouted = [m["name"] for m in models if m["name"] not in routed]
     if unrouted:
         print(f"\n  (not in routing.yaml: {', '.join(unrouted)})")
@@ -194,7 +186,7 @@ def _process_issue(issue_number: int, repo: str | None, mode: str | None, router
         f"Please analyse this issue and provide a clear, actionable response."
     )
 
-    route = router.route(mode or "reasoning_light")
+    route = router.route(mode)
     model, adapter_name = route["model"], route["adapter"]
     print(f"[superbot] mode={route['mode']} model={model}", file=sys.stderr)
 
@@ -303,7 +295,7 @@ def main(argv: list[str] | None = None) -> int:
     repo = args.repo or os.environ.get("GITHUB_DEFAULT_REPO") or None
 
     if args.list_models:
-        return _list_models()
+        return _list_models(router)
 
     if args.orchestrate:
         if not args.text:

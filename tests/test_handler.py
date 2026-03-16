@@ -14,7 +14,7 @@ class TestNormalize(unittest.TestCase):
     def test_basic(self):
         r = normalize({"text": "hello"})
         self.assertEqual(r.text, "hello")
-        self.assertEqual(r.mode, "reasoning_light")
+        self.assertEqual(r.mode, "")
         self.assertIsNone(r.repo)
         self.assertEqual(r.context, {})
 

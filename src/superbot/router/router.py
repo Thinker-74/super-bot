@@ -15,8 +15,12 @@ class Router:
         path = Path(config_path) if config_path else _DEFAULT_CONFIG
         with path.open() as fh:
             data = yaml.safe_load(fh)
+        if not data or "default_mode" not in data or "modes" not in data:
+            raise ValueError(f"Invalid routing config: {path} must contain 'default_mode' and 'modes'")
         self._default_mode: str = data["default_mode"]
         self._modes: dict[str, dict] = data["modes"]
+        if self._default_mode not in self._modes:
+            raise ValueError(f"default_mode '{self._default_mode}' not found in modes: {list(self._modes.keys())}")
 
     def route(self, mode: str | None = None) -> dict:
         """Return ``{model, adapter}`` for *mode*, falling back to default.

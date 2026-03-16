@@ -42,23 +42,23 @@ class TestHealthEndpoint(unittest.TestCase):
 
 class TestModelsEndpoint(unittest.TestCase):
 
-    @patch("httpx.get")
-    def test_models_ok(self, mock_get):
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {
-            "models": [{"name": "deepseek-r1:7b", "size": 7_000_000_000}]
-        }
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+    @patch("superbot.api.app._get_adapter")
+    def test_models_ok(self, mock_adapter_factory):
+        adapter = MagicMock()
+        adapter.list_models.return_value = [{"name": "qwen3:8b", "size_gb": 5.2}]
+        mock_adapter_factory.return_value = adapter
 
         r = client.get("/models")
         self.assertEqual(r.status_code, 200)
         models = r.json()["models"]
         self.assertEqual(len(models), 1)
-        self.assertEqual(models[0]["name"], "deepseek-r1:7b")
+        self.assertEqual(models[0]["name"], "qwen3:8b")
 
-    @patch("httpx.get", side_effect=Exception("unreachable"))
-    def test_models_ollama_down(self, _):
+    @patch("superbot.api.app._get_adapter")
+    def test_models_ollama_down(self, mock_adapter_factory):
+        adapter = MagicMock()
+        adapter.list_models.side_effect = Exception("unreachable")
+        mock_adapter_factory.return_value = adapter
         r = client.get("/models")
         self.assertEqual(r.status_code, 503)
 
@@ -86,7 +86,7 @@ class TestGenerateEndpoint(unittest.TestCase):
 
         r = client.post("/generate", json={"text": "write code", "mode": "coding"})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()["model"], "qwen2.5-coder:14b")
+        self.assertEqual(r.json()["model"], "qwen2.5-coder:7b")
 
     def test_generate_empty_text(self):
         r = client.post("/generate", json={"text": ""})

@@ -24,7 +24,7 @@ def normalize(raw_input: dict) -> Request:
 
     return Request(
         text=text,
-        mode=raw_input.get("mode", "reasoning_light"),
+        mode=raw_input.get("mode", ""),
         repo=raw_input.get("repo") or None,
         context=raw_input.get("context", {}),
     )

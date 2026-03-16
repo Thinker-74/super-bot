@@ -51,7 +51,7 @@ class GitHubAdapter:
         """
         issue = self._repo(repo).get_issue(number)
         comments = [
-            {"author": c.user.login, "body": c.body}
+            {"author": c.user.login if c.user else "ghost", "body": c.body}
             for c in issue.get_comments()
         ]
         return {

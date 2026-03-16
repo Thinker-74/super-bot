@@ -12,7 +12,7 @@ class OllamaAdapter:
     """Thin wrapper around Ollama's /api/generate REST endpoint.
 
     Args:
-        base_url: Ollama base URL, e.g. ``http://192.168.1.65:11434``.
+        base_url: Ollama base URL, e.g. ``http://192.168.1.63:11434``.
         timeout: Request timeout in seconds (default 300 for slow models).
         retries: Number of retry attempts on transient errors (default 2).
         retry_delay: Seconds to wait between retries (default 5).
@@ -29,6 +29,13 @@ class OllamaAdapter:
         self.timeout = timeout
         self.retries = retries
         self.retry_delay = retry_delay
+
+    def list_models(self) -> list[dict]:
+        """Return list of models available on the Ollama server."""
+        r = httpx.get(f"{self.base_url}/api/tags", timeout=8)
+        r.raise_for_status()
+        models = r.json().get("models", [])
+        return [{"name": m["name"], "size_gb": round(m.get("size", 0) / 1e9, 1)} for m in models]
 
     def health(self) -> bool:
         """Return True if the Ollama server is reachable."""

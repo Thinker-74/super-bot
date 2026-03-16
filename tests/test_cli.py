@@ -87,7 +87,7 @@ class TestMainDispatch(unittest.TestCase):
 
         self.assertEqual(rc, 0)
         call_kwargs = adapter.generate.call_args
-        self.assertEqual(call_kwargs[1]["model"], "qwen2.5-coder:14b")
+        self.assertEqual(call_kwargs[1]["model"], "qwen2.5-coder:7b")
 
     @patch("superbot.main._make_ollama")
     def test_adapter_error_returns_1(self, mock_ollama_factory):
@@ -103,17 +103,15 @@ class TestMainDispatch(unittest.TestCase):
 
 class TestListModels(unittest.TestCase):
 
-    @patch("httpx.get")
-    def test_list_models_success(self, mock_get):
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {
-            "models": [
-                {"name": "deepseek-r1:7b", "size": 7_000_000_000},
-                {"name": "qwen2.5-coder:14b", "size": 14_000_000_000},
-            ]
-        }
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+    @patch("superbot.main._make_ollama")
+    def test_list_models_success(self, mock_ollama_factory):
+        adapter = MagicMock()
+        adapter.list_models.return_value = [
+            {"name": "qwen3:8b", "size_gb": 5.2},
+            {"name": "qwen2.5-coder:7b", "size_gb": 4.7},
+        ]
+        adapter.base_url = "http://192.168.1.63:11434"
+        mock_ollama_factory.return_value = adapter
 
         buf = StringIO()
         with patch("sys.stdout", buf):
@@ -121,11 +119,15 @@ class TestListModels(unittest.TestCase):
 
         self.assertEqual(rc, 0)
         output = buf.getvalue()
-        self.assertIn("deepseek-r1:7b", output)
-        self.assertIn("qwen2.5-coder:14b", output)
+        self.assertIn("qwen3:8b", output)
+        self.assertIn("qwen2.5-coder:7b", output)
 
-    @patch("httpx.get", side_effect=Exception("unreachable"))
-    def test_list_models_failure(self, _):
+    @patch("superbot.main._make_ollama")
+    def test_list_models_failure(self, mock_ollama_factory):
+        adapter = MagicMock()
+        adapter.list_models.side_effect = Exception("unreachable")
+        adapter.base_url = "http://192.168.1.63:11434"
+        mock_ollama_factory.return_value = adapter
         with patch("sys.stderr", StringIO()):
             rc = main(["--list-models"])
         self.assertEqual(rc, 1)

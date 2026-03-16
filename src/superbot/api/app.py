@@ -30,7 +30,7 @@ from superbot.state.logger import log_request  # noqa: E402
 app = FastAPI(title="super-bot", version="1.0.0", description="Personal AI orchestration bot — HTTP gateway")
 
 _router = Router()
-_ollama_base = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.65:11434")
+_ollama_base = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.63:11434")
 
 
 def _get_adapter() -> OllamaAdapter:
@@ -69,17 +69,11 @@ def health():
 @app.get("/models", tags=["ops"])
 def list_models():
     """List models available on the Ollama server."""
-    import httpx
     try:
-        r = httpx.get(f"{_ollama_base}/api/tags", timeout=8)
-        r.raise_for_status()
-        models = r.json().get("models", [])
+        models = _get_adapter().list_models()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Ollama unreachable: {e}")
-    return {
-        "ollama_url": _ollama_base,
-        "models": [{"name": m["name"], "size_gb": round(m.get("size", 0) / 1e9, 1)} for m in models],
-    }
+    return {"ollama_url": _ollama_base, "models": models}
 
 
 @app.post("/generate", response_model=GenerateResponse, tags=["inference"])
@@ -99,21 +93,17 @@ def generate(body: GenerateRequest):
     adapter = _get_adapter()
 
     if body.stream:
-        # Return a streaming response
         def token_generator():
-            import json, httpx
-            payload = {"model": model, "prompt": request.text, "stream": True}
-            url = f"{_ollama_base}/api/generate"
-            with httpx.stream("POST", url, json=payload, timeout=adapter.timeout) as resp:
-                for line in resp.iter_lines():
-                    if not line:
-                        continue
-                    chunk = json.loads(line)
-                    token = chunk.get("response", "")
-                    if token:
-                        yield token
-                    if chunk.get("done"):
-                        break
+            collected: list[str] = []
+            try:
+                response_text = adapter.generate(model=model, prompt=request.text, stream=False)
+                collected.append(response_text)
+                yield response_text
+            except Exception as e:
+                yield f"\n[superbot] streaming error: {e}"
+                return
+            finally:
+                log_request(request, model, "".join(collected))
 
         return StreamingResponse(token_generator(), media_type="text/plain")
 
